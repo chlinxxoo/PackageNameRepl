@@ -1,0 +1,110 @@
+import java.util.regex.Matcher
+import java.util.regex.Pattern
+
+apply plugin: 'com.android.application'
+
+android {
+    compileSdkVersion 18
+    buildToolsVersion "22.0.1"
+
+    signingConfigs {
+        common {
+            storeFile file("sign/debug/lqsj_sign.keystore")
+            storePassword "123456"
+            keyAlias "lqsj"
+            keyPassword "123456"
+        }
+    }
+
+    defaultConfig {
+        applicationId "com.feiyin.dragon.andr.kugou"
+        minSdkVersion 9
+        targetSdkVersion 18
+        versionCode 1
+        versionName "1.0"
+        signingConfig signingConfigs.common
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+    productFlavors {
+        ccidandr {
+            applicationId "com.feiyin.ccidandr"
+        }
+        qihu {
+            applicationId "com.feiyin.qihu"
+        }
+    }
+}
+
+dependencies {
+    compile fileTree(dir: 'libs', include: ['*.jar'])
+}
+
+def walkInDirReplace(String dir, String fileExt, String regular, String replaceSrcStr, String targetStr) {
+    File f = new File(dir)
+    File[] fs = f.listFiles()
+    for (int i = 0; i < fs.size(); i++) {
+        if (fs[i].isFile() && !fs[i].getName().startsWith(".")) {
+            String[] ext = fs[i].getName().split("\\.")
+            if (ext[1].equals(fileExt)) {
+                // replacing
+                boolean needOverWrite = false
+                File out = new File(fs[i].getParent() + "/out.xml.temp")
+                try {
+                    BufferedWriter bw = new BufferedWriter(new FileWriter(out))
+                    Pattern p = Pattern.compile(regular)
+                    BufferedReader br = new BufferedReader(new FileReader(fs[i]))
+                    String line = br.readLine()
+                    while (null != line) {
+                        Matcher m = p.matcher(line)
+                        boolean result = m.find()
+                        if (result) {
+                            System.out.print("replacing..." + "\n")
+                            System.out.print("\t" + fs[i].getName() + "\n")
+                            System.out.print("\t" + line + "\n")
+                            line = line.replace(replaceSrcStr, targetStr)
+                            needOverWrite = true
+
+                        }
+                        bw.write(line)
+                        bw.newLine()
+                        line = br.readLine()
+                    }
+                    bw.flush()
+                    bw.close()
+                    br.close()
+                } catch (Exception e) {
+                    e.printStackTrace()
+                }
+                if (needOverWrite) {
+                    fs[i].delete()
+                    out.renameTo(fs[i])
+                } else {
+                    out.delete()
+                }
+            }
+        } else if (fs[i].isDirectory()) {
+            walkInDirReplace(fs[i].getPath(), fileExt, regular, replaceSrcStr, targetStr)
+        }
+    }
+}
+
+gradle.taskGraph.whenReady {
+    print "chl custom working\n"
+    List<String> tasks = gradle.getStartParameter().getTaskNames()
+    if (tasks.size() == 1) {
+        if (tasks[0].toLowerCase().startsWith("assembleccidandr")) {
+            print "ccidandr special handling" + "\n"
+            String searchRootPath = gradle.getStartParameter().getCurrentDir().getPath() + "/app/src/main"
+            String srcPackageName = "com.feiyin.dragon.andr.huawei"
+            String tarPackageName = "com.feiyin.dragon.andr.fuck.you"
+            walkInDirReplace(searchRootPath, "xml", "package\\s*=\\s*\"[a-z.]*\"", srcPackageName, tarPackageName)
+            walkInDirReplace(searchRootPath, "java", "import\\s*" + srcPackageName + ".R;", srcPackageName, tarPackageName)
+        }
+    }
+    print "chl custom working end\n"
+}
